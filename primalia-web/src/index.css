@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  color: #252120;
+}
+
+input, select, textarea {
+  outline: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
