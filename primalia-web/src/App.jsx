@@ -7,6 +7,9 @@ import Pagos from './components/Pagos.jsx'
 import Cuentas from './components/Cuentas.jsx'
 import Gastos from './components/Gastos.jsx'
 import Ajustes from './components/Ajustes.jsx'
+import { Settings } from 'lucide-react'
+import Bienvenida from './components/Bienvenida.jsx'
+import CandadoTransicion from './components/CandadoTransicion.jsx'
 
 function AppShell() {
   const [tab, setTab] = useState('inicio')
@@ -19,7 +22,7 @@ function AppShell() {
           onClick={() => setAjustesAbiertos(true)}
           className="w-9 h-9 rounded-full bg-cardElevated flex items-center justify-center text-textSecondary"
         >
-          ⚙
+          <Settings size={18} />
         </button>
       </div>
 
@@ -36,9 +39,13 @@ function AppShell() {
 }
 
 export default function App() {
+  const [fase, setFase] = useState('bienvenida')
+
   return (
     <AppProvider>
-      <AppShell />
+      {fase === 'bienvenida' && <Bienvenida onDesbloquear={() => setFase('transicion')} />}
+      {fase === 'transicion' && <CandadoTransicion onFinish={() => setFase('app')} />}
+      {fase === 'app' && <AppShell />}
     </AppProvider>
   )
 }

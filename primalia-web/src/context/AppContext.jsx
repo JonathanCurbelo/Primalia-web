@@ -9,7 +9,8 @@ const LS = {
   cuentas: 'primalia_cuentas',
   gastos: 'primalia_gastos',
   limites: 'primalia_limites',
-  nombre: 'primalia_nombre'
+  nombre: 'primalia_nombre',
+  foto: 'primalia_foto'
 }
 
 function cargar(key, fallback) {
@@ -51,6 +52,7 @@ export function AppProvider({ children }) {
   const [gastos, setGastos] = useState(() => cargar(LS.gastos, []))
   const [limites, setLimites] = useState(() => cargar(LS.limites, {}))
   const [nombreUsuario, setNombreUsuario] = useState(() => localStorage.getItem(LS.nombre) || 'Jonny')
+  const [fotoPerfil, setFotoPerfil] = useState(() => localStorage.getItem(LS.foto) || null)
 
   useEffect(() => { localStorage.setItem(LS.campanas, JSON.stringify(campanas)) }, [campanas])
   useEffect(() => { localStorage.setItem(LS.pagos, JSON.stringify(pagos)) }, [pagos])
@@ -58,6 +60,10 @@ export function AppProvider({ children }) {
   useEffect(() => { localStorage.setItem(LS.gastos, JSON.stringify(gastos)) }, [gastos])
   useEffect(() => { localStorage.setItem(LS.limites, JSON.stringify(limites)) }, [limites])
   useEffect(() => { localStorage.setItem(LS.nombre, nombreUsuario) }, [nombreUsuario])
+  useEffect(() => {
+    if (fotoPerfil) localStorage.setItem(LS.foto, fotoPerfil)
+    else localStorage.removeItem(LS.foto)
+  }, [fotoPerfil])
 
   function agregarCampana(c) {
     setCampanas(prev => [...prev, {
@@ -166,14 +172,14 @@ export function AppProvider({ children }) {
     if (categoriasConLimiteSuperado.length > 0) {
       const seg = categoriasConLimiteSuperado[0]
       const cat = CATEGORIAS_GASTO.find(c => c.id === seg.categoria)
-      return `¡Cuidado! ${cat.nombre} ya paso tu limite de ${Math.round(limites[seg.categoria])}€ ${cat.emoji}`
+      return `¡Cuidado! ${cat.nombre} ya paso tu limite de ${Math.round(limites[seg.categoria])}€`
     }
     if (desgloseCategoriasMes.length === 0) return ''
     const principal = desgloseCategoriasMes[0]
     const cat = CATEGORIAS_GASTO.find(c => c.id === principal.categoria)
     const total = desgloseCategoriasMes.reduce((t, s) => t + s.total, 0)
     const pct = total > 0 ? Math.round((principal.total / total) * 100) : 0
-    return `${cat.nombre} lidera tus gastos con un ${pct}% ${cat.emoji}`
+    return `${cat.nombre} lidera tus gastos con un ${pct}%`
   }
 
   function datosParaExportar() {
@@ -191,7 +197,7 @@ export function AppProvider({ children }) {
   }
 
   const value = {
-    campanas, pagos, cuentas, gastos, limites, nombreUsuario, setNombreUsuario,
+    campanas, pagos, cuentas, gastos, limites, nombreUsuario, setNombreUsuario, fotoPerfil, setFotoPerfil,
     agregarCampana, actualizarCampana, eliminarCampana,
     agregarPago, actualizarPago, eliminarPago, duplicarPago, alternarHechoPago,
     agregarCuenta, actualizarCuenta, eliminarCuenta,

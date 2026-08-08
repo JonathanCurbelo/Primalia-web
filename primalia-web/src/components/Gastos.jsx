@@ -3,7 +3,9 @@ import { useApp } from '../context/AppContext.jsx'
 import { Card } from './Card.jsx'
 import Modal, { Field, inputClass } from './Modal.jsx'
 import AnilloCategorias from './AnilloCategorias.jsx'
+import { Trash2, Plus } from 'lucide-react'
 import { CATEGORIAS_GASTO, catGasto } from '../data/categories.js'
+import { CategoriaIcon } from '../data/icons.jsx'
 
 const PERIODOS = ['Esta Semana', 'Este Mes', 'Todo']
 
@@ -90,7 +92,7 @@ export default function Gastos() {
       </Card>
 
       <button onClick={abrirNuevo} className="bg-accent text-white font-bold rounded-full py-3 flex items-center justify-center gap-2">
-        <span>+</span> Añadir gasto manual
+        <Plus size={18} /> Añadir gasto manual
       </button>
 
       <div>
@@ -105,8 +107,8 @@ export default function Gastos() {
             return (
               <Card key={cat.id} className="!p-3.5">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (supera ? '#D94438' : cat.color) + '29' }}>
-                    <span>{cat.emoji}</span>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (supera ? '#D94438' : cat.color) + '29', color: supera ? '#D94438' : cat.color }}>
+                    <CategoriaIcon icono={cat.icono} size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between">
@@ -137,15 +139,15 @@ export default function Gastos() {
               const cat = catGasto(g.categoria)
               return (
                 <div key={g.id} className="flex items-center gap-3 p-3">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: cat.color + '29' }}>
-                    <span className="text-sm">{cat.emoji}</span>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: cat.color + '29', color: cat.color }}>
+                    <CategoriaIcon icono={cat.icono} size={16} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-textPrimary truncate">{g.comercio}</p>
                     <p className="text-xs text-textSecondary">{cat.nombre} · {new Date(g.fecha).toLocaleDateString('es-ES')}</p>
                   </div>
                   <span className="font-bold text-sm text-danger shrink-0">-{Number(g.importe).toFixed(2)} €</span>
-                  <button onClick={() => app.eliminarGasto(g.id)} className="text-danger text-xs shrink-0">✕</button>
+                  <button onClick={() => app.eliminarGasto(g.id)} className="text-danger shrink-0"><Trash2 size={16} /></button>
                 </div>
               )
             })}
@@ -172,7 +174,7 @@ export default function Gastos() {
                   onClick={() => setForm({ ...form, categoria: cat.id })}
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm ${form.categoria === cat.id ? 'border-accent bg-accentSoft text-accent font-semibold' : 'border-cardBorder text-textPrimary'}`}
                 >
-                  <span>{cat.emoji}</span>{cat.nombre}
+                  <CategoriaIcon icono={cat.icono} size={16} />{cat.nombre}
                 </button>
               ))}
             </div>

@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react'
+import React, { useRef, useState } from 'react'
+import { Gift, PieChart, ArrowLeftRight, Banknote, CreditCard } from 'lucide-react'
 import { useApp } from '../context/AppContext.jsx'
 import { Card } from './Card.jsx'
 import AnilloCategorias from './AnilloCategorias.jsx'
 import { catPago } from '../data/categories.js'
+import { CategoriaIcon } from '../data/icons.jsx'
 
 const FRASES = [
   'A ver que trapicheos tenemos hoy 🎉',
@@ -28,18 +30,38 @@ function fechaFormateada() {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
-export default function Dashboard({ irA }) {
+export default function Dashboard() {
   const app = useApp()
   const [frase] = useState(() => FRASES[Math.floor(Math.random() * FRASES.length)])
+  const fileRef = useRef(null)
 
   const inicial = app.nombreUsuario.charAt(0).toUpperCase()
+
+  function manejarFoto(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => app.setFotoPerfil(reader.result)
+    reader.readAsDataURL(file)
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-5 pb-24 flex flex-col gap-5">
       <div className="flex items-start gap-3.5">
-        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-accent to-accentDark flex items-center justify-center text-white font-bold text-xl shrink-0">
-          {inicial}
-        </div>
+        <button
+          onClick={() => fileRef.current.click()}
+          className="w-14 h-14 rounded-full overflow-hidden shrink-0 border border-cardBorder"
+        >
+          {app.fotoPerfil ? (
+            <img src={app.fotoPerfil} alt="Foto de perfil" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-accent to-accentDark flex items-center justify-center text-white font-bold text-xl">
+              {inicial}
+            </div>
+          )}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={manejarFoto} />
+
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-textPrimary leading-tight">{saludoDelDia()}, {app.nombreUsuario}</h1>
           <p className="text-accent font-semibold text-sm mt-0.5">{frase}</p>
@@ -56,7 +78,7 @@ export default function Dashboard({ irA }) {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1.5 text-textSecondary text-sm">
-                <span>💵</span>
+                <Banknote size={15} />
                 <span>Total salidas este mes</span>
               </div>
               <p className="text-2xl font-bold text-textPrimary mt-1">{app.totalSalidasDelMes.toFixed(2)} €</p>
@@ -64,15 +86,15 @@ export default function Dashboard({ irA }) {
                 Gastos {app.gastoDelMes.toFixed(0)}€ + Pagos {app.pagosComoGastoDelMes.toFixed(0)}€
               </p>
             </div>
-            <span className="text-3xl text-accent">💳</span>
+            <CreditCard size={28} className="text-accent" />
           </div>
         </Card>
       )}
 
       <div className="grid grid-cols-3 gap-3">
-        <MetricaCard titulo="Ganancia campañas" valor={`${app.gananciaTotalCampanas.toFixed(0)} €`} icono="🎁" color="#34A353" />
-        <MetricaCard titulo="Gasto este mes" valor={`${app.gastoDelMes.toFixed(0)} €`} icono="📊" color="#FF7A27" />
-        <MetricaCard titulo="Pagos pendientes" valor={String(app.pagosPendientes.length)} icono="⇄" color="#D89214" />
+        <MetricaCard titulo="Ganancia campañas" valor={`${app.gananciaTotalCampanas.toFixed(0)} €`} Icono={Gift} color="#34A353" />
+        <MetricaCard titulo="Gasto este mes" valor={`${app.gastoDelMes.toFixed(0)} €`} Icono={PieChart} color="#FF7A27" />
+        <MetricaCard titulo="Pagos pendientes" valor={String(app.pagosPendientes.length)} Icono={ArrowLeftRight} color="#D89214" />
       </div>
 
       <Card>
@@ -86,7 +108,9 @@ export default function Dashboard({ irA }) {
               return (
                 <div key={p.id}>
                   <div className="flex items-center gap-3 py-2">
-                    <div className="w-7 text-center text-lg" style={{ color: cat.color }}>●</div>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: cat.color + '29', color: cat.color }}>
+                      <CategoriaIcon icono={cat.icono} size={16} />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-textPrimary text-sm truncate">{p.concepto}</p>
                       <p className="text-xs text-textSecondary truncate">{p.banco}</p>
@@ -134,10 +158,10 @@ export default function Dashboard({ irA }) {
   )
 }
 
-function MetricaCard({ titulo, valor, icono, color }) {
+function MetricaCard({ titulo, valor, Icono, color }) {
   return (
     <Card className="!p-3.5">
-      <span className="text-xl" style={{ color }}>{icono}</span>
+      <Icono size={20} style={{ color }} />
       <p className="text-lg font-bold text-textPrimary mt-2">{valor}</p>
       <p className="text-[11px] text-textSecondary mt-0.5 leading-tight">{titulo}</p>
     </Card>

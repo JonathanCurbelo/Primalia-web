@@ -2,7 +2,9 @@ import React, { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { Card } from './Card.jsx'
 import Modal, { Field, inputClass } from './Modal.jsx'
+import { Copy, Trash2 } from 'lucide-react'
 import { CATEGORIAS_PAGO, catPago, TIPOS_AVISO, TIPOS_REPETICION } from '../data/categories.js'
+import { CategoriaIcon } from '../data/icons.jsx'
 
 const VACIO = {
   banco: '', concepto: '', importe: 0, esHecho: false, categoria: 'otro',
@@ -75,7 +77,9 @@ export default function Pagos() {
                   const cat = catPago(p.categoria)
                   return (
                     <div key={p.id} className="flex items-center gap-3 p-3">
-                      <span className="text-lg shrink-0" style={{ color: cat.color }}>●</span>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: cat.color + '29', color: cat.color }}>
+                        <CategoriaIcon icono={cat.icono} size={16} />
+                      </div>
                       <button onClick={() => abrirEditar(p)} className="flex-1 min-w-0 text-left">
                         <p className="font-semibold text-sm text-textPrimary truncate">{p.concepto}</p>
                         <p className="text-xs text-textSecondary truncate">
@@ -92,8 +96,8 @@ export default function Pagos() {
                         </button>
                         <span className="font-bold text-sm text-danger">-{Number(p.importe).toFixed(2)}€</span>
                       </div>
-                      <button onClick={() => app.duplicarPago(p)} className="text-textTertiary text-xs shrink-0">⧉</button>
-                      <button onClick={() => app.eliminarPago(p.id)} className="text-danger text-xs shrink-0">✕</button>
+                      <button onClick={() => app.duplicarPago(p)} className="text-textTertiary shrink-0"><Copy size={16} /></button>
+                      <button onClick={() => app.eliminarPago(p.id)} className="text-danger shrink-0"><Trash2 size={16} /></button>
                     </div>
                   )
                 })}

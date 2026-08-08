@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { Card, Pill } from './Card.jsx'
 import Modal, { Field, inputClass } from './Modal.jsx'
+import { CreditCard } from 'lucide-react'
 import { TIPOS_CUENTA, tipoCuenta } from '../data/categories.js'
 
 const VACIO = {
@@ -44,7 +45,7 @@ export default function Cuentas() {
 
       {filtradas.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <span className="text-4xl">💳</span>
+          <CreditCard size={40} className="text-accent" />
           <p className="font-bold text-textPrimary">No tienes cuentas registradas.</p>
           <p className="text-sm text-textSecondary px-8">Registra tus cuentas bancarias abiertas y sus ventajas exclusivas.</p>
         </div>

@@ -1,25 +1,25 @@
 export const CATEGORIAS_GASTO = [
-  { id: 'supermercado', nombre: 'Supermercado', color: '#34A353', emoji: '🛒', icono: 'cart' },
-  { id: 'cafeteria', nombre: 'Cafeteria', color: '#D89214', emoji: '☕', icono: 'cup' },
-  { id: 'restaurante', nombre: 'Restaurante', color: '#FF7A27', emoji: '🍽', icono: 'fork' },
-  { id: 'ocio', nombre: 'Ocio', color: '#9E73FF', emoji: '🎟', icono: 'ticket' },
-  { id: 'transporte', nombre: 'Transporte', color: '#EE9933', emoji: '🚗', icono: 'car' },
-  { id: 'salud', nombre: 'Salud', color: '#D95266', emoji: '💊', icono: 'health' },
-  { id: 'hogar', nombre: 'Hogar', color: '#669980', emoji: '🏠', icono: 'home' },
-  { id: 'ropa', nombre: 'Ropa', color: '#D98C33', emoji: '👕', icono: 'shirt' },
-  { id: 'suscripciones', nombre: 'Suscripciones', color: '#8066CC', emoji: '🔁', icono: 'repeat' },
-  { id: 'otros', nombre: 'Otros', color: '#A39D97', emoji: '📦', icono: 'grid' }
+  { id: 'supermercado', nombre: 'Supermercado', color: '#34A353', icono: 'cart' },
+  { id: 'cafeteria', nombre: 'Cafeteria', color: '#D89214', icono: 'cup' },
+  { id: 'restaurante', nombre: 'Restaurante', color: '#FF7A27', icono: 'fork' },
+  { id: 'ocio', nombre: 'Ocio', color: '#9E73FF', icono: 'ticket' },
+  { id: 'transporte', nombre: 'Transporte', color: '#EE9933', icono: 'car' },
+  { id: 'salud', nombre: 'Salud', color: '#D95266', icono: 'health' },
+  { id: 'hogar', nombre: 'Hogar', color: '#669980', icono: 'home' },
+  { id: 'ropa', nombre: 'Ropa', color: '#D98C33', icono: 'shirt' },
+  { id: 'suscripciones', nombre: 'Suscripciones', color: '#8066CC', icono: 'repeat' },
+  { id: 'otros', nombre: 'Otros', color: '#A39D97', icono: 'grid' }
 ]
 
 export const CATEGORIAS_PAGO = [
-  { id: 'transferencia', nombre: 'Transferencia', color: '#FF7A27', cuentaComoGasto: false },
-  { id: 'financieraCredito', nombre: 'Financiera / Credito', color: '#9E73FF', cuentaComoGasto: true },
-  { id: 'telefoniaFibra', nombre: 'Telefonia y Fibra', color: '#408CD9', cuentaComoGasto: true },
-  { id: 'suscripciones', nombre: 'Suscripciones', color: '#8066CC', cuentaComoGasto: true },
-  { id: 'reservaViaje', nombre: 'Reserva / Viaje', color: '#34A353', cuentaComoGasto: true },
-  { id: 'recibos', nombre: 'Recibo', color: '#D89214', cuentaComoGasto: true },
-  { id: 'alquiler', nombre: 'Alquiler', color: '#D95266', cuentaComoGasto: false },
-  { id: 'otro', nombre: 'Otro', color: '#A39D97', cuentaComoGasto: false }
+  { id: 'transferencia', nombre: 'Transferencia', color: '#FF7A27', cuentaComoGasto: false, icono: 'transfer' },
+  { id: 'financieraCredito', nombre: 'Financiera / Credito', color: '#9E73FF', cuentaComoGasto: true, icono: 'card' },
+  { id: 'telefoniaFibra', nombre: 'Telefonia y Fibra', color: '#408CD9', cuentaComoGasto: true, icono: 'wifi' },
+  { id: 'suscripciones', nombre: 'Suscripciones', color: '#8066CC', cuentaComoGasto: true, icono: 'repeat' },
+  { id: 'reservaViaje', nombre: 'Reserva / Viaje', color: '#34A353', cuentaComoGasto: true, icono: 'plane' },
+  { id: 'recibos', nombre: 'Recibo', color: '#D89214', cuentaComoGasto: true, icono: 'file' },
+  { id: 'alquiler', nombre: 'Alquiler', color: '#D95266', cuentaComoGasto: false, icono: 'home' },
+  { id: 'otro', nombre: 'Otro', color: '#A39D97', cuentaComoGasto: false, icono: 'more' }
 ]
 
 export const TIPOS_CUENTA = [
