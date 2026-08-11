@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx'
 import { Card } from './Card.jsx'
 import Modal, { Field, inputClass } from './Modal.jsx'
 import AnilloCategorias from './AnilloCategorias.jsx'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, ScanLine } from 'lucide-react'
 import { CATEGORIAS_GASTO, catGasto } from '../data/categories.js'
 import { CategoriaIcon } from '../data/icons.jsx'
 
@@ -25,6 +25,10 @@ function enMismaSemana(fechaISO) {
 function enMismoMes(fechaISO) {
   const f = new Date(fechaISO); const ahora = new Date()
   return f.getFullYear() === ahora.getFullYear() && f.getMonth() === ahora.getMonth()
+}
+
+function avisarEscaneoWeb() {
+  alert('El escaneo de tickets con cámara está disponible en la app de iPhone 📱✨\n\nEn la web, de momento, añade el gasto con "Añadir manual".')
 }
 
 export default function Gastos() {
@@ -91,9 +95,14 @@ export default function Gastos() {
         <AnilloCategorias segmentos={segmentos} totalGastado={totalGastado} />
       </Card>
 
-      <button onClick={abrirNuevo} className="bg-accent text-white font-bold rounded-full py-3 flex items-center justify-center gap-2">
-        <Plus size={18} /> Añadir gasto manual
-      </button>
+      <div className="flex gap-3">
+        <button onClick={abrirNuevo} className="flex-1 bg-accent text-white font-bold rounded-full py-3 flex items-center justify-center gap-2">
+          <Plus size={18} /> Añadir manual
+        </button>
+        <button onClick={avisarEscaneoWeb} className="flex-1 bg-accent/10 text-accent font-bold rounded-full py-3 flex items-center justify-center gap-2">
+          <ScanLine size={18} /> Escanear ticket
+        </button>
+      </div>
 
       <div>
         <h3 className="font-bold text-textPrimary mb-2">Desglose por Categorias</h3>
