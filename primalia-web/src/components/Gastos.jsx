@@ -1,14 +1,14 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { Card } from './Card.jsx'
 import Modal, { Field, inputClass } from './Modal.jsx'
 import AnilloCategorias from './AnilloCategorias.jsx'
-import { Trash2, Plus, ScanLine } from 'lucide-react'
+import { Trash2, Plus, ScanLine, X } from 'lucide-react'
 import { CATEGORIAS_GASTO, catGasto } from '../data/categories.js'
 import { CategoriaIcon } from '../data/icons.jsx'
+import Tesseract from 'tesseract.js'
 
 const PERIODOS = ['Esta Semana', 'Este Mes', 'Todo']
-
 const VACIO = { comercio: '', importe: 0, fecha: new Date().toISOString().slice(0, 10), categoria: 'otros' }
 
 function enMismaSemana(fechaISO) {
@@ -27,8 +27,30 @@ function enMismoMes(fechaISO) {
   return f.getFullYear() === ahora.getFullYear() && f.getMonth() === ahora.getMonth()
 }
 
-function avisarEscaneoWeb() {
-  alert('El escaneo de tickets con cámara está disponible en la app de iPhone 📱✨\n\nEn la web, de momento, añade el gasto con "Añadir manual".')
+// Función para parsear texto OCR y extraer datos
+function parsearTicket(texto) {
+  const lineas = texto.split('\n').filter(l => l.trim())
+  
+  // Buscar número que parezca importe (con € o decimal)
+  const importeRegex = /[\d,]+\.?\d{1,2}\s*€?|\$[\d,.]+/gi
+  const importes = texto.match(importeRegex) || []
+  let importe = 0
+  
+  if (importes.length > 0) {
+    const ultimoImporte = importes[importes.length - 1].replace(/[€$\s]/g, '').replace(',', '.')
+    importe = Math.max(...importes.map(i => parseFloat(i.replace(/[€$\s]/g, '').replace(',', '.'))))
+  }
+
+  // Buscar nombre de comercio (primera línea larga o palabras capitalizadas)
+  let comercio = ''
+  for (const linea of lineas) {
+    if (linea.length > 3 && linea.length < 50 && /[A-Za-z]/.test(linea)) {
+      comercio = linea.trim()
+      break
+    }
+  }
+
+  return { comercio, importe: importe || 0 }
 }
 
 export default function Gastos() {
@@ -36,6 +58,10 @@ export default function Gastos() {
   const [periodo, setPeriodo] = useState('Este Mes')
   const [modalAbierto, setModalAbierto] = useState(false)
   const [form, setForm] = useState(VACIO)
+  const [escaneoActivo, setEscaneoActivo] = useState(false)
+  const [procesandoOCR, setProcesandoOCR] = useState(false)
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
 
   const filtrados = useMemo(() => {
     if (periodo === 'Esta Semana') return app.gastos.filter(g => enMismaSemana(g.fecha))
@@ -64,7 +90,100 @@ export default function Gastos() {
     setModalAbierto(false)
   }
 
+  // Abrir cámara para escaneo
+  async function abrirCamara() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      })
+      setEscaneoActivo(true)
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+    } catch (err) {
+      alert('No se pudo acceder a la cámara. Asegúrate de haber dado permisos.')
+    }
+  }
+
+  // Capturar foto y procesarla con OCR
+  async function capturarYProcesar() {
+    if (!videoRef.current || !canvasRef.current) return
+    
+    setProcesandoOCR(true)
+    try {
+      const context = canvasRef.current.getContext('2d')
+      const video = videoRef.current
+      canvasRef.current.width = video.videoWidth
+      canvasRef.current.height = video.videoHeight
+      context.drawImage(video, 0, 0)
+      
+      const imagenURL = canvasRef.current.toDataURL('image/jpeg')
+      
+      // Procesar con Tesseract
+      const resultado = await Tesseract.recognize(imagenURL, 'spa')
+      const texto = resultado.data.text
+      
+      const datosExtraidos = parsearTicket(texto)
+      
+      // Rellenar formulario con datos extraídos
+      setForm({
+        ...VACIO,
+        comercio: datosExtraidos.comercio,
+        importe: datosExtraidos.importe
+      })
+      
+      // Cerrar cámara
+      if (videoRef.current?.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+      }
+      setEscaneoActivo(false)
+      setModalAbierto(true)
+    } catch (err) {
+      alert('Error al procesar imagen: ' + err.message)
+    } finally {
+      setProcesandoOCR(false)
+    }
+  }
+
+  // Cerrar escaneo
+  function cerrarEscaneo() {
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+    }
+    setEscaneoActivo(false)
+  }
+
   const frase = app.fraseGastosContextual()
+
+  if (escaneoActivo) {
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex flex-col">
+        <video 
+          ref={videoRef} 
+          autoPlay 
+          playsInline 
+          className="flex-1 object-cover w-full"
+        />
+        <canvas ref={canvasRef} className="hidden" />
+        
+        <div className="bg-black/80 text-white p-4 flex gap-3">
+          <button
+            onClick={cerrarEscaneo}
+            className="flex-1 bg-red-600 hover:bg-red-700 rounded-full py-3 font-bold flex items-center justify-center gap-2"
+          >
+            <X size={18} /> Cerrar
+          </button>
+          <button
+            onClick={capturarYProcesar}
+            disabled={procesandoOCR}
+            className="flex-1 bg-accent hover:bg-accentDark rounded-full py-3 font-bold disabled:opacity-50"
+          >
+            {procesandoOCR ? 'Leyendo...' : 'Capturar'}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 pt-5 pb-24 flex flex-col gap-4">
@@ -99,7 +218,7 @@ export default function Gastos() {
         <button onClick={abrirNuevo} className="flex-1 bg-accent text-white font-bold rounded-full py-3 flex items-center justify-center gap-2">
           <Plus size={18} /> Añadir manual
         </button>
-        <button onClick={avisarEscaneoWeb} className="flex-1 bg-accent/10 text-accent font-bold rounded-full py-3 flex items-center justify-center gap-2">
+        <button onClick={abrirCamara} className="flex-1 bg-accent/10 text-accent font-bold rounded-full py-3 flex items-center justify-center gap-2">
           <ScanLine size={18} /> Escanear ticket
         </button>
       </div>
@@ -170,26 +289,4 @@ export default function Gastos() {
             <input className={inputClass} placeholder="Ej. Mercadona, Netflix..." value={form.comercio} onChange={e => setForm({ ...form, comercio: e.target.value })} />
           </Field>
           <Field label="Importe (€)">
-            <input type="number" step="0.01" className={inputClass} value={form.importe} onChange={e => setForm({ ...form, importe: e.target.value })} />
-          </Field>
-          <Field label="Fecha">
-            <input type="date" className={inputClass} value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} />
-          </Field>
-          <Field label="Categoria">
-            <div className="grid grid-cols-2 gap-2">
-              {CATEGORIAS_GASTO.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setForm({ ...form, categoria: cat.id })}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm ${form.categoria === cat.id ? 'border-accent bg-accentSoft text-accent font-semibold' : 'border-cardBorder text-textPrimary'}`}
-                >
-                  <CategoriaIcon icono={cat.icono} size={16} />{cat.nombre}
-                </button>
-              ))}
-            </div>
-          </Field>
-        </Modal>
-      )}
-    </div>
-  )
-}
+            <input
