@@ -1,314 +1,231 @@
-import React, { useMemo, useState, useRef } from 'react'
-import { useApp } from '../context/AppContext.jsx'
-import { Card } from './Card.jsx'
-import Modal, { Field, inputClass } from './Modal.jsx'
-import AnilloCategorias from './AnilloCategorias.jsx'
-import { Trash2, Plus, ScanLine, X } from 'lucide-react'
-import { CATEGORIAS_GASTO, catGasto } from '../data/categories.js'
-import { CategoriaIcon } from '../data/icons.jsx'
-import Tesseract from 'tesseract.js'
+import { useState, useRef } from 'react';
+import { ScanLine, Plus, X } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
-const PERIODOS = ['Esta Semana', 'Este Mes', 'Todo']
-const VACIO = { comercio: '', importe: 0, fecha: new Date().toISOString().slice(0, 10), categoria: 'otros' }
-
-function enMismaSemana(fechaISO) {
-  const f = new Date(fechaISO); const ahora = new Date()
-  const inicioSemana = new Date(ahora)
-  const dia = (ahora.getDay() + 6) % 7
-  inicioSemana.setDate(ahora.getDate() - dia)
-  inicioSemana.setHours(0, 0, 0, 0)
-  const finSemana = new Date(inicioSemana)
-  finSemana.setDate(inicioSemana.getDate() + 7)
-  return f >= inicioSemana && f < finSemana
-}
-
-function enMismoMes(fechaISO) {
-  const f = new Date(fechaISO); const ahora = new Date()
-  return f.getFullYear() === ahora.getFullYear() && f.getMonth() === ahora.getMonth()
-}
-
-// Función para parsear texto OCR y extraer datos
-function parsearTicket(texto) {
-  const lineas = texto.split('\n').filter(l => l.trim())
-  
-  // Buscar número que parezca importe (con € o decimal)
-  const importeRegex = /[\d,]+\.?\d{1,2}\s*€?|\$[\d,.]+/gi
-  const importes = texto.match(importeRegex) || []
-  let importe = 0
-  
-  if (importes.length > 0) {
-    const ultimoImporte = importes[importes.length - 1].replace(/[€$\s]/g, '').replace(',', '.')
-    importe = Math.max(...importes.map(i => parseFloat(i.replace(/[€$\s]/g, '').replace(',', '.'))))
-  }
-
-  // Buscar nombre de comercio (primera línea larga o palabras capitalizadas)
-  let comercio = ''
-  for (const linea of lineas) {
-    if (linea.length > 3 && linea.length < 50 && /[A-Za-z]/.test(linea)) {
-      comercio = linea.trim()
-      break
-    }
-  }
-
-  return { comercio, importe: importe || 0 }
-}
+const Tesseract = window.Tesseract;
 
 export default function Gastos() {
-  const app = useApp()
-  const [periodo, setPeriodo] = useState('Este Mes')
-  const [modalAbierto, setModalAbierto] = useState(false)
-  const [form, setForm] = useState(VACIO)
-  const [escaneoActivo, setEscaneoActivo] = useState(false)
-  const [procesandoOCR, setProcesandoOCR] = useState(false)
-  const videoRef = useRef(null)
-  const canvasRef = useRef(null)
+  const { gastos, setGastos, categorias } = useApp();
+  const [form, setForm] = useState({ fecha: '', importe: '', comercio: '', categoria: '', descripcion: '' });
+  const [showModal, setShowModal] = useState(false);
+  const [escaneoActivo, setEscaneoActivo] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
-  const filtrados = useMemo(() => {
-    if (periodo === 'Esta Semana') return app.gastos.filter(g => enMismaSemana(g.fecha))
-    if (periodo === 'Este Mes') return app.gastos.filter(g => enMismoMes(g.fecha))
-    return app.gastos
-  }, [app.gastos, periodo])
+  const mesActual = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+  const gastosMes = gastos.filter(g => {
+    const fecha = new Date(g.fecha);
+    return fecha.getMonth() === new Date().getMonth() && fecha.getFullYear() === new Date().getFullYear();
+  });
+  const totalMes = gastosMes.reduce((sum, g) => sum + parseFloat(g.importe || 0), 0);
+  const categoriaDominante = gastosMes.length > 0
+    ? Object.entries(gastosMes.reduce((acc, g) => {
+        acc[g.categoria] = (acc[g.categoria] || 0) + parseFloat(g.importe || 0);
+        return acc;
+      }, {})).sort((a, b) => b[1] - a[1])[0]
+    : null;
 
-  const ordenados = [...filtrados].sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-  const totalGastado = filtrados.reduce((t, g) => t + Number(g.importe || 0), 0)
+  const parsearTicket = (texto) => {
+    const importes = texto.match(/[\d,]+\.?\d{1,2}\s*€?/gi) || [];
+    const importe = importes.length > 0 ? parseFloat(Math.max(...importes.map(i => parseFloat(i.replace(/[€\s]/g, ''))))) : '';
+    const comercio = texto.split('\n')[0].replace(/[\d,.\s€]/g, '').slice(0, 30) || '';
+    return { importe, comercio };
+  };
 
-  const segmentos = useMemo(() => {
-    const acumulado = {}
-    filtrados.forEach(g => { acumulado[g.categoria] = (acumulado[g.categoria] || 0) + Number(g.importe || 0) })
-    return Object.entries(acumulado).map(([categoria, total]) => ({ categoria, total })).sort((a, b) => b.total - a.total)
-  }, [filtrados])
-
-  function abrirNuevo() { setForm(VACIO); setModalAbierto(true) }
-  function guardar() {
-    if (Number(form.importe) <= 0) return
-    app.agregarGasto({
-      comercio: form.comercio || 'Gasto',
-      importe: Number(form.importe),
-      fecha: new Date(form.fecha).toISOString(),
-      categoria: form.categoria
-    })
-    setModalAbierto(false)
-  }
-
-  // Abrir cámara para escaneo
-  async function abrirCamara() {
+  const abrirCamara = async () => {
+    setEscaneoActivo(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      })
-      setEscaneoActivo(true)
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
       }
-    } catch (err) {
-      alert('No se pudo acceder a la cámara. Asegúrate de haber dado permisos.')
+    } catch (error) {
+      alert('No se pudo acceder a la cámara');
+      setEscaneoActivo(false);
     }
-  }
+  };
 
-  // Capturar foto y procesarla con OCR
-  async function capturarYProcesar() {
-    if (!videoRef.current || !canvasRef.current) return
+  const capturarYProcesar = async () => {
+    if (!canvasRef.current || !videoRef.current) return;
+    const context = canvasRef.current.getContext('2d');
+    canvasRef.current.width = videoRef.current.videoWidth;
+    canvasRef.current.height = videoRef.current.videoHeight;
+    context.drawImage(videoRef.current, 0, 0);
+    const imagenURL = canvasRef.current.toDataURL('image/jpeg', 0.8);
     
-    setProcesandoOCR(true)
     try {
-      const context = canvasRef.current.getContext('2d')
-      const video = videoRef.current
-      canvasRef.current.width = video.videoWidth
-      canvasRef.current.height = video.videoHeight
-      context.drawImage(video, 0, 0)
-      
-      const imagenURL = canvasRef.current.toDataURL('image/jpeg')
-      
-      // Procesar con Tesseract
-      const resultado = await Tesseract.recognize(imagenURL, 'spa')
-      const texto = resultado.data.text
-      
-      const datosExtraidos = parsearTicket(texto)
-      
-      // Rellenar formulario con datos extraídos
-      setForm({
-        ...VACIO,
-        comercio: datosExtraidos.comercio,
-        importe: datosExtraidos.importe
-      })
-      
-      // Cerrar cámara
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop())
-      }
-      setEscaneoActivo(false)
-      setModalAbierto(true)
-    } catch (err) {
-      alert('Error al procesar imagen: ' + err.message)
-    } finally {
-      setProcesandoOCR(false)
+      const { data } = await Tesseract.recognize(imagenURL, 'spa');
+      const { importe, comercio } = parsearTicket(data.text);
+      setForm(prev => ({
+        ...prev,
+        importe: importe || '',
+        comercio: comercio || ''
+      }));
+      cerrarEscaneo();
+      setShowModal(true);
+    } catch (error) {
+      alert('Error al procesar imagen: ' + error.message);
     }
-  }
+  };
 
-  // Cerrar escaneo
-  function cerrarEscaneo() {
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop())
+  const cerrarEscaneo = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
     }
-    setEscaneoActivo(false)
-  }
+    setEscaneoActivo(false);
+  };
 
-  const frase = app.fraseGastosContextual()
+  const agregarGasto = () => {
+    if (!form.fecha || !form.importe) {
+      alert('Por favor completa fecha e importe');
+      return;
+    }
+    setGastos([...gastos, { id: Date.now(), ...form }]);
+    setForm({ fecha: '', importe: '', comercio: '', categoria: '', descripcion: '' });
+    setShowModal(false);
+  };
 
-  if (escaneoActivo) {
-    return (
-      <div className="fixed inset-0 bg-black z-50 flex flex-col">
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          playsInline 
-          className="flex-1 object-cover w-full"
-        />
-        <canvas ref={canvasRef} className="hidden" />
-        
-        <div className="bg-black/80 text-white p-4 flex gap-3">
-          <button
-            onClick={cerrarEscaneo}
-            className="flex-1 bg-red-600 hover:bg-red-700 rounded-full py-3 font-bold flex items-center justify-center gap-2"
-          >
-            <X size={18} /> Cerrar
-          </button>
-          <button
-            onClick={capturarYProcesar}
-            disabled={procesandoOCR}
-            className="flex-1 bg-accent hover:bg-accentDark rounded-full py-3 font-bold disabled:opacity-50"
-          >
-            {procesandoOCR ? 'Leyendo...' : 'Capturar'}
-          </button>
-        </div>
-      </div>
-    )
-  }
+  const eliminarGasto = (id) => {
+    setGastos(gastos.filter(g => g.id !== id));
+  };
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-5 pb-24 flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-textPrimary">Gastos</h1>
-        <p className="text-xs text-textSecondary mt-0.5">{periodo} · {totalGastado.toFixed(2)}€</p>
+    <div className="flex flex-col h-screen bg-gradient-to-b from-gray-100 to-white">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-orange-400 to-orange-500 text-white p-6 rounded-b-3xl shadow-lg">
+        <h1 className="text-4xl font-bold">Gastos</h1>
+        <p className="text-sm opacity-90">{mesActual} · {totalMes.toFixed(2)}€</p>
+        {categoriaDominante && (
+          <p className="text-orange-100 text-sm mt-2">
+            {categoriaDominante[0]} lidera tus gastos con un {((categoriaDominante[1] / totalMes) * 100).toFixed(0)}%
+          </p>
+        )}
       </div>
 
-      {frase && (
-        <div className={`text-sm font-semibold px-3 py-2 rounded-xl ${app.categoriasConLimiteSuperado.length > 0 ? 'bg-danger/10 text-danger' : 'text-accent'}`}>
-          {frase}
-        </div>
-      )}
-
-      <div className="flex bg-cardElevated rounded-xl p-1">
-        {PERIODOS.map(p => (
-          <button
-            key={p}
-            onClick={() => setPeriodo(p)}
-            className={`flex-1 text-xs font-semibold py-2 rounded-lg ${periodo === p ? 'bg-card shadow-card text-textPrimary' : 'text-textSecondary'}`}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
-
-      <Card>
-        <AnilloCategorias segmentos={segmentos} totalGastado={totalGastado} />
-      </Card>
-
-      <div className="flex gap-3">
-        <button onClick={abrirNuevo} className="flex-1 bg-accent text-white font-bold rounded-full py-3 flex items-center justify-center gap-2">
+      {/* Botones */}
+      <div className="flex gap-3 p-4 sticky top-0 bg-white shadow-sm z-10">
+        <button onClick={() => setShowModal(true)} className="flex-1 bg-orange-500 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-orange-600">
           <Plus size={18} /> Añadir manual
         </button>
-        <button onClick={abrirCamara} className="flex-1 bg-accent/10 text-accent font-bold rounded-full py-3 flex items-center justify-center gap-2">
+        <button onClick={abrirCamara} className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-blue-600">
           <ScanLine size={18} /> Escanear ticket
         </button>
       </div>
 
-      <div>
-        <h3 className="font-bold text-textPrimary mb-2">Desglose por Categorias</h3>
-        <div className="flex flex-col gap-2.5">
-          {CATEGORIAS_GASTO.map(cat => {
-            const seg = segmentos.find(s => s.categoria === cat.id)
-            if (!seg || seg.total <= 0) return null
-            const pct = totalGastado > 0 ? (seg.total / totalGastado) * 100 : 0
-            const lim = app.limite(cat.id)
-            const supera = periodo === 'Este Mes' && lim && seg.total > lim
-            return (
-              <Card key={cat.id} className="!p-3.5">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (supera ? '#D94438' : cat.color) + '29', color: supera ? '#D94438' : cat.color }}>
-                    <CategoriaIcon icono={cat.icono} size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between">
-                      <span className={`text-sm font-semibold ${supera ? 'text-danger' : 'text-textPrimary'}`}>{cat.nombre}</span>
-                      <span className={`text-sm font-bold ${supera ? 'text-danger' : 'text-textPrimary'}`}>{seg.total.toFixed(2)} €</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-cardBorder mt-1.5 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: supera ? '#D94438' : cat.color }} />
-                    </div>
-                    <span className="text-[11px] text-textTertiary">
-                      {supera ? `${seg.total.toFixed(2)}€ gastados / limite ${lim.toFixed(0)}€` : `${pct.toFixed(1)}% del total`}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-            )
-          })}
+      {/* Pantalla de escaneo */}
+      {escaneoActivo && (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center">
+          <video ref={videoRef} className="w-full h-full object-cover" />
+          <canvas ref={canvasRef} className="hidden" />
+          <div className="absolute bottom-8 left-0 right-0 flex gap-4 justify-center px-4">
+            <button onClick={cerrarEscaneo} className="bg-red-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-red-700">
+              Cerrar
+            </button>
+            <button onClick={capturarYProcesar} className="bg-orange-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-orange-600">
+              Capturar
+            </button>
+          </div>
+          <p className="absolute top-8 text-white text-lg">Leyendo...</p>
+        </div>
+      )}
+
+      {/* Listado de gastos */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Desglose por categorías */}
+        <div>
+          <h2 className="text-xl font-bold mb-3">Desglose por Categorías</h2>
+          {Object.entries(
+            gastosMes.reduce((acc, g) => {
+              acc[g.categoria] = (acc[g.categoria] || 0) + parseFloat(g.importe || 0);
+              return acc;
+            }, {})
+          ).map(([cat, total]) => (
+            <div key={cat} className="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-10 h-10 rounded-full bg-orange-200 flex items-center justify-center text-orange-600">
+                🛒
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold">{cat}</p>
+                <p className="text-sm text-gray-600">{((total / totalMes) * 100).toFixed(1)}% del total</p>
+              </div>
+              <p className="font-bold text-lg">{total.toFixed(2)}€</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Últimos gastos */}
+        <div>
+          <h2 className="text-xl font-bold mb-3">Ultimos gastos</h2>
+          {[...gastos].reverse().slice(0, 5).map(gasto => (
+            <div key={gasto.id} className="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center">
+                🛒
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold">{gasto.comercio}</p>
+                <p className="text-sm text-gray-600">{gasto.categoria} · {gasto.fecha}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="font-bold text-red-600">-{gasto.importe}€</p>
+                <button onClick={() => eliminarGasto(gasto.id)} className="text-red-600 hover:text-red-800">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div>
-        <h3 className="font-bold text-textPrimary mb-2">Ultimos gastos</h3>
-        {ordenados.length === 0 ? (
-          <p className="text-center text-sm text-textTertiary py-8">No hay gastos registrados en este periodo.</p>
-        ) : (
-          <Card className="!p-0 divide-y divide-cardBorder overflow-hidden">
-            {ordenados.slice(0, 50).map(g => {
-              const cat = catGasto(g.categoria)
-              return (
-                <div key={g.id} className="flex items-center gap-3 p-3">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: cat.color + '29', color: cat.color }}>
-                    <CategoriaIcon icono={cat.icono} size={16} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-textPrimary truncate">{g.comercio}</p>
-                    <p className="text-xs text-textSecondary">{cat.nombre} · {new Date(g.fecha).toLocaleDateString('es-ES')}</p>
-                  </div>
-                  <span className="font-bold text-sm text-danger shrink-0">-{Number(g.importe).toFixed(2)} €</span>
-                  <button onClick={() => app.eliminarGasto(g.id)} className="text-danger shrink-0"><Trash2 size={16} /></button>
-                </div>
-              )
-            })}
-          </Card>
-        )}
-      </div>
-
-      {modalAbierto && (
-        <Modal titulo="Nuevo Gasto" onClose={() => setModalAbierto(false)} onGuardar={guardar}>
-          <Field label="Comercio o concepto">
-            <input className={inputClass} placeholder="Ej. Mercadona, Netflix..." value={form.comercio} onChange={e => setForm({ ...form, comercio: e.target.value })} />
-          </Field>
-          <Field label="Importe (€)">
-            <input type="number" step="0.01" className={inputClass} value={form.importe} onChange={e => setForm({ ...form, importe: e.target.value })} />
-          </Field>
-          <Field label="Fecha">
-            <input type="date" className={inputClass} value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} />
-          </Field>
-          <Field label="Categoria">
-            <div className="grid grid-cols-2 gap-2">
-              {CATEGORIAS_GASTO.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setForm({ ...form, categoria: cat.id })}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm ${form.categoria === cat.id ? 'border-accent bg-accentSoft text-accent font-semibold' : 'border-cardBorder text-textPrimary'}`}
-                >
-                  <CategoriaIcon icono={cat.icono} size={16} />{cat.nombre}
-                </button>
-              ))}
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-40">
+          <div className="w-full bg-white rounded-t-3xl p-6 space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Nuevo Gasto</h2>
+              <button onClick={() => setShowModal(false)} className="text-gray-600 hover:text-gray-900">
+                <X size={24} />
+              </button>
             </div>
-          </Field>
-        </Modal>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Fecha</label>
+              <input type="date" value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className="w-full border border-gray-300 rounded-lg p-3" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Importe (€)</label>
+              <input type="number" step="0.01" value={form.importe} onChange={(e) => setForm({ ...form, importe: e.target.value })} className="w-full border border-gray-300 rounded-lg p-3" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Comercio</label>
+              <input type="text" value={form.comercio} onChange={(e) => setForm({ ...form, comercio: e.target.value })} className="w-full border border-gray-300 rounded-lg p-3" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Categoría</label>
+              <select value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} className="w-full border border-gray-300 rounded-lg p-3">
+                <option value="">Selecciona una categoría</option>
+                {categorias.map(cat => (
+                  <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2">Descripción</label>
+              <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} className="w-full border border-gray-300 rounded-lg p-3" rows="3" />
+            </div>
+
+            <button onClick={agregarGasto} className="w-full bg-orange-500 text-white py-3 rounded-lg font-bold hover:bg-orange-600">
+              Agregar Gasto
+            </button>
+          </div>
+        </div>
       )}
     </div>
-  )
+  );
 }
