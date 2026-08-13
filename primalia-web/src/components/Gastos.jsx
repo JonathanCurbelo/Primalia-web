@@ -5,7 +5,8 @@ import { useApp } from '../context/AppContext';
 const Tesseract = window.Tesseract;
 
 export default function Gastos() {
-  const { gastos, setGastos, categorias } = useApp();
+  const { gastos, agregarGasto: agregarGastoCtx, eliminarGasto: eliminarGastoCtx, categorias } = useApp();
+  const listaCategorias = categorias || [];
   const [form, setForm] = useState({ fecha: '', importe: '', comercio: '', categoria: '', descripcion: '' });
   const [showModal, setShowModal] = useState(false);
   const [escaneoActivo, setEscaneoActivo] = useState(false);
@@ -19,7 +20,7 @@ export default function Gastos() {
     return fecha.getMonth() === new Date().getMonth() && fecha.getFullYear() === new Date().getFullYear();
   });
   const totalMes = gastosMes.reduce((sum, g) => sum + parseFloat(g.importe || 0), 0);
-  const categoriaDominante = gastosMes.length > 0
+  const categoriaDominante = gastosMes.length > 0 && totalMes > 0
     ? Object.entries(gastosMes.reduce((acc, g) => {
         acc[g.categoria] = (acc[g.categoria] || 0) + parseFloat(g.importe || 0);
         return acc;
@@ -27,9 +28,14 @@ export default function Gastos() {
     : null;
 
   const parsearTicket = (texto) => {
+    if (!texto) return { importe: '', comercio: '' };
     const importes = texto.match(/[\d,]+\.?\d{1,2}\s*€?/gi) || [];
-    const importe = importes.length > 0 ? parseFloat(Math.max(...importes.map(i => parseFloat(i.replace(/[€\s]/g, ''))))) : '';
-    const comercio = texto.split('\n')[0].replace(/[\d,.\s€]/g, '').slice(0, 30) || '';
+    const valores = importes
+      .map(i => parseFloat(i.replace(/[€\s]/g, '').replace(',', '.')))
+      .filter(v => !isNaN(v));
+    const importe = valores.length > 0 ? Math.max(...valores) : '';
+    const primeraLinea = texto.split('\n')[0] || '';
+    const comercio = primeraLinea.replace(/[\d,.\s€]/g, '').slice(0, 30) || '';
     return { importe, comercio };
   };
 
@@ -55,19 +61,23 @@ export default function Gastos() {
     canvasRef.current.height = videoRef.current.videoHeight;
     context.drawImage(videoRef.current, 0, 0);
     const imagenURL = canvasRef.current.toDataURL('image/jpeg', 0.8);
-    
+
     try {
+      if (!Tesseract) {
+        throw new Error('Tesseract no está cargado todavía, espera unos segundos y vuelve a intentarlo');
+      }
       const { data } = await Tesseract.recognize(imagenURL, 'spa');
-      const { importe, comercio } = parsearTicket(data.text);
+      const { importe, comercio } = parsearTicket(data?.text);
       setForm(prev => ({
         ...prev,
-        importe: importe || '',
+        importe: importe !== '' ? String(importe) : '',
         comercio: comercio || ''
       }));
       cerrarEscaneo();
       setShowModal(true);
     } catch (error) {
       alert('Error al procesar imagen: ' + error.message);
+      cerrarEscaneo();
     }
   };
 
@@ -83,13 +93,13 @@ export default function Gastos() {
       alert('Por favor completa fecha e importe');
       return;
     }
-    setGastos([...gastos, { id: Date.now(), ...form }]);
+    agregarGastoCtx({ ...form });
     setForm({ fecha: '', importe: '', comercio: '', categoria: '', descripcion: '' });
     setShowModal(false);
   };
 
   const eliminarGasto = (id) => {
-    setGastos(gastos.filter(g => g.id !== id));
+    eliminarGastoCtx(id);
   };
 
   return (
@@ -137,7 +147,7 @@ export default function Gastos() {
         {/* Desglose por categorías */}
         <div>
           <h2 className="text-xl font-bold mb-3">Desglose por Categorías</h2>
-          {Object.entries(
+          {totalMes > 0 && Object.entries(
             gastosMes.reduce((acc, g) => {
               acc[g.categoria] = (acc[g.categoria] || 0) + parseFloat(g.importe || 0);
               return acc;
@@ -154,6 +164,7 @@ export default function Gastos() {
               <p className="font-bold text-lg">{total.toFixed(2)}€</p>
             </div>
           ))}
+          {totalMes === 0 && <p className="text-sm text-gray-500">Todavía no hay gastos este mes.</p>}
         </div>
 
         {/* Últimos gastos */}
@@ -176,6 +187,7 @@ export default function Gastos() {
               </div>
             </div>
           ))}
+          {gastos.length === 0 && <p className="text-sm text-gray-500">Aún no has añadido ningún gasto.</p>}
         </div>
       </div>
 
@@ -209,7 +221,7 @@ export default function Gastos() {
               <label className="block text-sm font-semibold mb-2">Categoría</label>
               <select value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} className="w-full border border-gray-300 rounded-lg p-3">
                 <option value="">Selecciona una categoría</option>
-                {categorias.map(cat => (
+                {listaCategorias.map(cat => (
                   <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>
                 ))}
               </select>
