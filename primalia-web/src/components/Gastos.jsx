@@ -289,4 +289,26 @@ export default function Gastos() {
             <input className={inputClass} placeholder="Ej. Mercadona, Netflix..." value={form.comercio} onChange={e => setForm({ ...form, comercio: e.target.value })} />
           </Field>
           <Field label="Importe (€)">
-            <input
+            <input type="number" step="0.01" className={inputClass} value={form.importe} onChange={e => setForm({ ...form, importe: e.target.value })} />
+          </Field>
+          <Field label="Fecha">
+            <input type="date" className={inputClass} value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} />
+          </Field>
+          <Field label="Categoria">
+            <div className="grid grid-cols-2 gap-2">
+              {CATEGORIAS_GASTO.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setForm({ ...form, categoria: cat.id })}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm ${form.categoria === cat.id ? 'border-accent bg-accentSoft text-accent font-semibold' : 'border-cardBorder text-textPrimary'}`}
+                >
+                  <CategoriaIcon icono={cat.icono} size={16} />{cat.nombre}
+                </button>
+              ))}
+            </div>
+          </Field>
+        </Modal>
+      )}
+    </div>
+  )
+}
