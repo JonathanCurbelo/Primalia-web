@@ -197,7 +197,7 @@ export function AppProvider({ children }) {
   }
 
   const value = {
-    campanas, pagos, cuentas, gastos, limites, nombreUsuario, setNombreUsuario, fotoPerfil, setFotoPerfil,
+    campanas, pagos, cuentas, gastos, limites, categorias: CATEGORIAS_GASTO, nombreUsuario, setNombreUsuario, fotoPerfil, setFotoPerfil,
     agregarCampana, actualizarCampana, eliminarCampana,
     agregarPago, actualizarPago, eliminarPago, duplicarPago, alternarHechoPago,
     agregarCuenta, actualizarCuenta, eliminarCuenta,
