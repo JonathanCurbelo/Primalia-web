@@ -1,210 +1,204 @@
-import React, { useRef, useState } from 'react'
-import { useApp } from '../context/AppContext.jsx'
-import { Card } from './Card.jsx'
-import { CATEGORIAS_GASTO } from '../data/categories.js'
-import { Bell, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState } from 'react';
+import { ChevronRight, Download, Upload, ChevronDown } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
-function IconoFlechaCuadro({ direccion = 'arriba', color = '#FF7A27' }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      {direccion === 'arriba' ? (
-        <>
-          <path d="M12 16V8" />
-          <path d="M8.5 11.5 12 8l3.5 3.5" />
-        </>
-      ) : (
-        <>
-          <path d="M12 8v8" />
-          <path d="M8.5 12.5 12 16l3.5-3.5" />
-        </>
-      )}
-    </svg>
-  )
-}
+export default function Ajustes() {
+  const { nombreUsuario, setNombreUsuario, fotoPerfil, setFotoPerfil, limites, establecerLimite, categorias, datosParaExportar, restaurar } = useApp();
+  const [editandoNombre, setEditandoNombre] = useState(false);
+  const [nombreTemp, setNombreTemp] = useState(nombreUsuario);
+  const [expandirNotificaciones, setExpandirNotificaciones] = useState(false);
+  const [expandirLimites, setExpandirLimites] = useState(false);
 
-function Interruptor({ value, onChange }) {
-  return (
-    <button
-      onClick={() => onChange(!value)}
-      className="w-12 h-7 rounded-full relative transition-colors duration-200 shrink-0"
-      style={{ background: value ? '#FF7A27' : '#E4E0DB' }}
-    >
-      <span
-        className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all duration-200"
-        style={{ left: value ? '22px' : '2px' }}
-      />
-    </button>
-  )
-}
-
-function PantallaNotificaciones({ onVolver, onVerLimites }) {
-  const [avisosPagos, setAvisosPagos] = useState(() => localStorage.getItem('primalia_aviso_pagos') !== 'false')
-  const [avisosCampanas, setAvisosCampanas] = useState(() => localStorage.getItem('primalia_aviso_campanas') !== 'false')
-  const [avisosLimite, setAvisosLimite] = useState(() => localStorage.getItem('primalia_aviso_limite') !== 'false')
-
-  const cambiar = (setter, key) => (val) => { setter(val); localStorage.setItem(key, String(val)) }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-bg overflow-y-auto">
-      <div className="max-w-md mx-auto px-4 pt-6 pb-24">
-        <div className="flex items-center gap-3 mb-5">
-          <button onClick={onVolver} className="w-9 h-9 rounded-full bg-cardElevated flex items-center justify-center text-textSecondary">
-            <ChevronLeft size={18} />
-          </button>
-          <h1 className="text-xl font-bold text-textPrimary">Notificaciones</h1>
-        </div>
-
-        <Card className="!p-0 divide-y divide-cardBorder overflow-hidden">
-          <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <Bell size={18} className="text-accent" />
-              <span className="text-sm text-textPrimary">Avisos de Pagos</span>
-            </div>
-            <Interruptor value={avisosPagos} onChange={cambiar(setAvisosPagos, 'primalia_aviso_pagos')} />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <Bell size={18} className="text-accent" />
-              <span className="text-sm text-textPrimary">Avisos de Campañas</span>
-            </div>
-            <Interruptor value={avisosCampanas} onChange={cambiar(setAvisosCampanas, 'primalia_aviso_campanas')} />
-          </div>
-          <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <Bell size={18} className="text-accent" />
-              <span className="text-sm text-textPrimary">Avisos de Límite de gasto</span>
-            </div>
-            <Interruptor value={avisosLimite} onChange={cambiar(setAvisosLimite, 'primalia_aviso_limite')} />
-          </div>
-          <button onClick={onVerLimites} className="w-full flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <AlertTriangle size={18} className="text-accent" />
-              <span className="text-sm text-textPrimary">Límites de gasto por categoría</span>
-            </div>
-            <ChevronRight size={16} className="text-textTertiary" />
-          </button>
-        </Card>
-        <p className="text-[11px] text-textTertiary mt-3 px-1">
-          Si apagas un tipo de aviso, dejarás de recibir notificaciones de ese tipo, pero seguirás viendo la información marcada dentro de la app con normalidad (colores, iconos de aviso, etc.).
-        </p>
-      </div>
-    </div>
-  )
-}
-
-export default function Ajustes({ onClose }) {
-  const app = useApp()
-  const fileRef = useRef(null)
-  const [mensaje, setMensaje] = useState(null)
-  const [vista, setVista] = useState('principal')
-
-  function exportar() {
-    const blob = new Blob([app.datosParaExportar()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    const fecha = new Date().toISOString().slice(0, 10)
-    a.href = url
-    a.download = `Primalia_copia_${fecha}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  function importar(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        const datos = JSON.parse(reader.result)
-        app.restaurar(datos)
-        setMensaje({ texto: 'Copia de seguridad importada correctamente.', error: false })
-      } catch {
-        setMensaje({ texto: 'No se pudo leer el archivo. Asegurate de que es una copia valida.', error: true })
-      }
+  const cambiarFoto = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        setFotoPerfil(evt.target?.result);
+      };
+      reader.readAsDataURL(file);
     }
-    reader.readAsText(file)
-  }
+  };
 
-  if (vista === 'notificaciones') {
-    return (
-      <PantallaNotificaciones
-        onVolver={() => setVista('principal')}
-        onVerLimites={() => setVista('principal')}
-      />
-    )
-  }
+  const guardarNombre = () => {
+    setNombreUsuario(nombreTemp);
+    setEditandoNombre(false);
+  };
+
+  const exportar = () => {
+    const datos = datosParaExportar();
+    const blob = new Blob([datos], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `primalia-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importar = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const datos = JSON.parse(evt.target?.result);
+          if (restaurar(datos)) {
+            alert('Copia de seguridad restaurada correctamente');
+          } else {
+            alert('El archivo no es válido');
+          }
+        } catch {
+          alert('Error al leer el archivo');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-bg overflow-y-auto">
-      <div className="max-w-md mx-auto px-4 pt-6 pb-24">
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-xl font-bold text-textPrimary">Ajustes</h1>
-          <button onClick={onClose} className="text-accent font-bold">Hecho</button>
+    <div className="flex flex-col h-screen bg-gradient-to-b from-gray-100 to-white pb-20">
+      {/* Header */}
+      <div className="bg-white p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Ajustes</h1>
+          <span className="text-orange-500 font-semibold text-sm">Hecho</span>
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div className="flex-1 overflow-y-auto">
+        {/* PERFIL */}
+        <div className="bg-white border-b border-gray-200">
+          <div className="p-4">
+            <h2 className="text-xs font-bold text-gray-600 uppercase mb-4">Perfil</h2>
+            
+            {/* Foto */}
+            <div className="mb-6 flex flex-col items-center">
+              <label className="cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
+                  {fotoPerfil ? (
+                    <img src={fotoPerfil} alt="Perfil" className="w-full h-full object-cover" />
+                  ) : (
+                    'P'
+                  )}
+                </div>
+                <input type="file" accept="image/*" onChange={cambiarFoto} className="hidden" />
+              </label>
+              <p className="text-xs text-gray-500 mt-2">Toca para cambiar</p>
+            </div>
+
+            {/* Nombre */}
+            <div>
+              <label className="block text-sm font-semibold mb-2">Nombre</label>
+              {editandoNombre ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={nombreTemp}
+                    onChange={(e) => setNombreTemp(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded-lg p-3"
+                    autoFocus
+                  />
+                  <button onClick={guardarNombre} className="bg-orange-500 text-white px-4 py-3 rounded-lg font-semibold hover:bg-orange-600">
+                    Guardar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <p className="font-medium">{nombreUsuario}</p>
+                  <button onClick={() => setEditandoNombre(true)} className="text-orange-500 hover:text-orange-600">
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <Card className="mb-4">
-          <p className="text-xs font-bold text-textSecondary uppercase mb-2">Perfil</p>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-textPrimary">Nombre</span>
-            <input
-              className="text-right text-textSecondary bg-transparent outline-none"
-              value={app.nombreUsuario}
-              onChange={e => app.setNombreUsuario(e.target.value)}
-            />
-          </div>
-        </Card>
-
-        <Card className="mb-4 !p-0">
-          <button onClick={() => setVista('notificaciones')} className="w-full flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <Bell size={18} className="text-accent" />
-              <span className="text-sm text-textPrimary">Notificaciones</span>
-            </div>
-            <ChevronRight size={16} className="text-textTertiary" />
-          </button>
-        </Card>
-
-        <Card className="mb-4">
-          <p className="text-xs font-bold text-textSecondary uppercase mb-3">Limites de gasto por categoria</p>
-          <div className="flex flex-col gap-3">
-            {CATEGORIAS_GASTO.map(cat => (
-              <div key={cat.id} className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                <span className="flex-1 text-sm text-textPrimary">{cat.nombre}</span>
-                <input
-                  type="number"
-                  placeholder="—"
-                  className="w-20 text-right bg-cardElevated border border-cardBorder rounded-lg px-2 py-1 text-sm"
-                  defaultValue={app.limite(cat.id) || ''}
-                  onBlur={e => app.establecerLimite(cat.id, Number(e.target.value))}
-                />
-                <span className="text-sm text-textSecondary">€</span>
+        {/* NOTIFICACIONES Y LÍMITES */}
+        <div className="bg-white border-b border-gray-200">
+          <div className="p-4">
+            <h2 className="text-xs font-bold text-gray-600 uppercase mb-4">Notificaciones</h2>
+            
+            {/* Toggle Notificaciones */}
+            <div className="space-y-3 mb-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="font-medium text-sm">Avisos de Pagos</span>
+                <input type="checkbox" defaultChecked className="w-6 h-6 accent-orange-500" />
               </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-textTertiary mt-3">Deja vacio para no vigilar esa categoria.</p>
-        </Card>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="font-medium text-sm">Avisos de Campañas</span>
+                <input type="checkbox" defaultChecked className="w-6 h-6 accent-orange-500" />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className="font-medium text-sm">Avisos de Límite de gasto</span>
+                <input type="checkbox" defaultChecked className="w-6 h-6 accent-orange-500" />
+              </div>
+            </div>
 
-        <Card>
-          <p className="text-xs font-bold text-textSecondary uppercase mb-3">Copia de seguridad</p>
-          <button onClick={exportar} className="w-full flex items-center gap-3 py-2.5 mb-2.5">
-            <IconoFlechaCuadro direccion="arriba" color="#FF7A27" />
-            <span className="text-accent font-semibold">Exportar copia de seguridad</span>
-          </button>
-          <button onClick={() => fileRef.current.click()} className="w-full flex items-center gap-3 py-2.5">
-            <IconoFlechaCuadro direccion="abajo" color="#D94438" />
-            <span className="text-danger font-semibold">Importar copia de seguridad</span>
-          </button>
-          <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importar} />
-          <p className="text-[11px] text-textTertiary mt-3">
-            Se incluyen campañas, pagos, cuentas y gastos. El archivo se guarda donde tu elijas.
-          </p>
-          {mensaje && (
-            <p className={`text-sm mt-3 ${mensaje.error ? 'text-danger' : 'text-secondary'}`}>{mensaje.texto}</p>
-          )}
-        </Card>
+            {/* Sección de Límites (expandible) */}
+            <button
+              onClick={() => setExpandirLimites(!expandirLimites)}
+              className="w-full flex items-center justify-between p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition"
+            >
+              <span className="font-semibold text-orange-600">Límites de gasto por categoría</span>
+              <ChevronDown size={20} className={`text-orange-600 transition ${expandirLimites ? 'rotate-180' : ''}`} />
+            </button>
+
+            {expandirLimites && (
+              <div className="mt-3 space-y-2 p-3 bg-gray-50 rounded-lg">
+                {categorias && categorias.map(cat => (
+                  <div key={cat.id} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                    <span className="flex-1 text-sm font-medium">{cat.nombre}</span>
+                    <input
+                      type="number"
+                      placeholder="—"
+                      value={limites[cat.nombre] || ''}
+                      onChange={(e) => establecerLimite(cat.nombre, e.target.value ? parseFloat(e.target.value) : 0)}
+                      className="w-16 border border-gray-300 rounded p-1 text-right text-sm"
+                    />
+                    <span className="text-sm text-gray-600">€</span>
+                  </div>
+                ))}
+                <p className="text-xs text-gray-500 mt-2 italic">Deja vacío para no vigilar esa categoría.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* COPIA DE SEGURIDAD */}
+        <div className="bg-white">
+          <div className="p-4">
+            <h2 className="text-xs font-bold text-gray-600 uppercase mb-4">Copia de seguridad</h2>
+            
+            <div className="space-y-2">
+              <button
+                onClick={exportar}
+                className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition font-semibold text-sm"
+              >
+                <span className="flex items-center gap-2">
+                  <Download size={18} />
+                  Exportar copia
+                </span>
+                <ChevronRight size={20} />
+              </button>
+
+              <label className="block cursor-pointer">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition font-semibold text-sm">
+                  <span className="flex items-center gap-2">
+                    <Upload size={18} />
+                    Importar copia
+                  </span>
+                  <ChevronRight size={20} />
+                </div>
+                <input type="file" accept=".json" onChange={importar} className="hidden" />
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  )
+  );
 }
