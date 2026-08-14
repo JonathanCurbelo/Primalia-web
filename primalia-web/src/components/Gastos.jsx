@@ -10,43 +10,34 @@ export default function Gastos() {
   const [form, setForm] = useState({ fecha: '', importe: '', comercio: '', categoria: '', descripcion: '' });
   const [showModal, setShowModal] = useState(false);
   const [escaneoActivo, setEscaneoActivo] = useState(false);
-  const [tabActivo, setTabActivo] = useState('mes');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
   const mesActual = new Date().toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-  
-  // Filtros por período
-  const obtenerGastosPorPeriodo = (periodo) => {
-    const ahora = new Date();
-    return gastos.filter(g => {
-      const fecha = new Date(g.fecha);
-      if (periodo === 'semana') {
-        const hace7Dias = new Date(ahora.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return fecha >= hace7Dias;
-      } else if (periodo === 'mes') {
-        return fecha.getMonth() === ahora.getMonth() && fecha.getFullYear() === ahora.getFullYear();
-      }
-      return true;
-    });
-  };
+  const gastosMes = gastos.filter(g => {
+    const fecha = new Date(g.fecha);
+    return fecha.getMonth() === new Date().getMonth() && fecha.getFullYear() === new Date().getFullYear();
+  });
+  const totalMes = gastosMes.reduce((sum, g) => sum + parseFloat(g.importe || 0), 0);
+  const categoriaDominante = gastosMes.length > 0 && totalMes > 0
+    ? Object.entries(gastosMes.reduce((acc, g) => {
+        acc[g.categoria] = (acc[g.categoria] || 0) + parseFloat(g.importe || 0);
+        return acc;
+      }, {})).sort((a, b) => b[1] - a[1])[0]
+    : null;
 
-  const gastosFiltrados = obtenerGastosPorPeriodo(tabActivo);
-  const totalFiltrado = gastosFiltrados.reduce((sum, g) => sum + parseFloat(g.importe || 0), 0);
-  
-  const desgloseFiltrado = gastosFiltrados.reduce((acc, g) => {
+  // Detectar límites excedidos
+  const desgloseMes = gastosMes.reduce((acc, g) => {
     acc[g.categoria] = (acc[g.categoria] || 0) + parseFloat(g.importe || 0);
     return acc;
   }, {});
-
-  // Detectar categorías que exceden límite
-  const categoriasAlerta = Object.entries(desgloseFiltrado).filter(
+  const categoriasAlerta = Object.entries(desgloseMes).filter(
     ([cat, total]) => limites[cat] && total > limites[cat]
   );
 
   const parsearTicket = (texto) => {
-    if (!texto) return { importe: '', comercio: '', fecha: '' };
+    if (!texto) return { importe: '', comercio: '' };
     
     // Buscar el total
     let importe = '';
@@ -54,33 +45,25 @@ export default function Gastos() {
     if (totalMatch) {
       importe = parseFloat(totalMatch[1].replace(/[.,]/, '.'));
     } else {
-      const precioMatches = texto.match(/\d{1,4}[.,]\d{2}/g) || [];
-      const preciosValidos = precioMatches
-        .map(p => parseFloat(p.replace(/[.,]/, '.')))
-        .filter(v => !isNaN(v) && v > 0 && v < 10000);
-      importe = preciosValidos.length > 0 ? Math.max(...preciosValidos) : '';
+      const importes = texto.match(/[\d,]+\.?\d{1,2}\s*€?/gi) || [];
+      const valores = importes
+        .map(i => parseFloat(i.replace(/[€\s]/g, '').replace(',', '.')))
+        .filter(v => !isNaN(v));
+      importe = valores.length > 0 ? Math.max(...valores) : '';
     }
     
-    // Comercio: buscar la primera línea sin números, más limpia
+    // Comercio: buscar primera línea "limpia" (sin números basura)
     let comercio = '';
     const lineas = texto.split('\n');
     for (const linea of lineas) {
-      const limpio = linea.replace(/[\d,.\s€()]/g, '').trim();
-      if (limpio.length > 2 && limpio.length < 30) {
+      const limpio = linea.replace(/[\d,.\s€()A-\d]/g, '').trim();
+      if (limpio.length > 2 && limpio.length < 30 && !/^\d+$/.test(limpio)) {
         comercio = limpio;
         break;
       }
     }
     
-    // Fecha
-    let fecha = '';
-    const fechaMatch = texto.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (fechaMatch) {
-      const [, dia, mes, año] = fechaMatch;
-      fecha = `${año}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
-    }
-    
-    return { importe, comercio, fecha };
+    return { importe, comercio };
   };
 
   const abrirCamara = async () => {
@@ -111,10 +94,9 @@ export default function Gastos() {
         throw new Error('Tesseract no está cargado todavía, espera unos segundos y vuelve a intentarlo');
       }
       const { data } = await Tesseract.recognize(imagenURL, 'spa');
-      const { importe, comercio, fecha } = parsearTicket(data?.text);
+      const { importe, comercio } = parsearTicket(data?.text);
       setForm(prev => ({
         ...prev,
-        fecha: fecha || '',
         importe: importe !== '' ? String(importe) : '',
         comercio: comercio || ''
       }));
@@ -150,42 +132,23 @@ export default function Gastos() {
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-gray-100 to-white">
       {/* Header */}
-      <div className="bg-white p-4">
-        <h1 className="text-3xl font-bold">Gastos</h1>
-        <p className="text-sm text-gray-600">Este Mes · {totalFiltrado.toFixed(2)}€</p>
+      <div className="bg-gradient-to-r from-orange-400 to-orange-500 text-white p-6 rounded-b-3xl shadow-lg">
+        <h1 className="text-4xl font-bold">Gastos</h1>
+        <p className="text-sm opacity-90">{mesActual} · {totalMes.toFixed(2)}€</p>
+        {categoriaDominante && (
+          <p className="text-orange-100 text-sm mt-2">
+            {categoriaDominante[0]} lidera tus gastos con un {((categoriaDominante[1] / totalMes) * 100).toFixed(0)}%
+          </p>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 px-4 py-3 overflow-x-auto sticky top-0 bg-white">
-        <button
-          onClick={() => setTabActivo('semana')}
-          className={`px-4 py-2 rounded-full whitespace-nowrap font-semibold transition ${
-            tabActivo === 'semana'
-              ? 'bg-gray-800 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
-          Esta Semana
+      {/* Botones */}
+      <div className="flex gap-3 p-4 sticky top-0 bg-white shadow-sm z-10">
+        <button onClick={() => setShowModal(true)} className="flex-1 bg-orange-500 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-orange-600">
+          <Plus size={18} /> Añadir manual
         </button>
-        <button
-          onClick={() => setTabActivo('mes')}
-          className={`px-4 py-2 rounded-full whitespace-nowrap font-semibold transition ${
-            tabActivo === 'mes'
-              ? 'bg-gray-800 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
-          Este Mes
-        </button>
-        <button
-          onClick={() => setTabActivo('todo')}
-          className={`px-4 py-2 rounded-full whitespace-nowrap font-semibold transition ${
-            tabActivo === 'todo'
-              ? 'bg-gray-800 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
-        >
-          Todo
+        <button onClick={abrirCamara} className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-blue-600">
+          <ScanLine size={18} /> Escanear ticket
         </button>
       </div>
 
@@ -206,112 +169,63 @@ export default function Gastos() {
         </div>
       )}
 
-      {/* Contenido */}
+      {/* Listado de gastos */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Tarjeta con círculo de gasto */}
-        {totalFiltrado > 0 && (
-          <div className="bg-white rounded-3xl p-6 shadow-lg">
-            <div className="flex items-center gap-6">
-              {/* Círculo con porcentaje */}
-              <div className="flex-shrink-0">
-                <div className="relative w-40 h-40 flex items-center justify-center">
-                  <svg className="w-40 h-40" viewBox="0 0 160 160">
-                    <circle cx="80" cy="80" r="70" fill="none" stroke="#e5e7eb" strokeWidth="8" />
-                    <circle
-                      cx="80"
-                      cy="80"
-                      r="70"
-                      fill="none"
-                      stroke="#22c55e"
-                      strokeWidth="8"
-                      strokeDasharray={`${(100 / 100) * 439.82} 439.82`}
-                      strokeLinecap="round"
-                      transform="rotate(-90 80 80)"
-                    />
-                  </svg>
-                  <div className="absolute text-center">
-                    <p className="text-3xl font-bold">100%</p>
-                    <p className="text-xs text-gray-500">TOTAL GASTADO</p>
-                    <p className="text-lg font-semibold">{totalFiltrado.toFixed(2)} €</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Desglose */}
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-gray-600 mb-3">GASTO TOTAL ESTE MES</p>
-                <div className="space-y-2">
-                  {Object.entries(desgloseFiltrado).map(([cat, total]) => (
-                    <div key={cat} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{cat}</p>
-                      </div>
-                      <p className="text-sm font-semibold">{total.toFixed(2)} € ({((total / totalFiltrado) * 100).toFixed(0)}%)</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Alertas por límites excedidos */}
+        {/* Alertas de límites */}
         {categoriasAlerta.length > 0 && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
-            <div className="flex gap-3">
-              <AlertTriangle className="text-yellow-600 flex-shrink-0" size={20} />
-              <div>
-                <p className="font-semibold text-yellow-800">Límites excedidos</p>
-                <p className="text-sm text-yellow-700">
-                  {categoriasAlerta.map(([cat, total]) => (
-                    <span key={cat}>
-                      {cat}: {total.toFixed(2)}€ (límite: {limites[cat]}€)
-                    </span>
-                  )).reduce((prev, curr) => [prev, ', ', curr])}
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg flex gap-3">
+            <AlertTriangle className="text-yellow-600 flex-shrink-0" size={18} />
+            <div>
+              <p className="font-semibold text-yellow-800 text-sm">Límites excedidos</p>
+              {categoriasAlerta.map(([cat, total]) => (
+                <p key={cat} className="text-xs text-yellow-700">
+                  {cat}: {total.toFixed(2)}€ (límite: {limites[cat]}€)
                 </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Botones de acción */}
-        <div className="flex gap-3">
-          <button onClick={() => setShowModal(true)} className="flex-1 bg-orange-500 text-white py-3 rounded-full font-semibold flex items-center justify-center gap-2 hover:bg-orange-600">
-            <Plus size={20} /> Añadir manual
-          </button>
-          <button onClick={abrirCamara} className="flex-1 bg-blue-500 text-white py-3 rounded-full font-semibold flex items-center justify-center gap-2 hover:bg-blue-600">
-            <ScanLine size={20} /> Escanear ticket
-          </button>
-        </div>
-
-        {/* Últimos gastos */}
-        {gastosFiltrados.length > 0 && (
-          <div>
-            <h2 className="text-lg font-bold mb-3">Últimos gastos</h2>
-            <div className="space-y-2">
-              {[...gastosFiltrados].reverse().slice(0, 5).map(gasto => (
-                <div key={gasto.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center">🛒</div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm">{gasto.comercio}</p>
-                    <p className="text-xs text-gray-600">{gasto.categoria} · {gasto.fecha}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-red-600 text-sm">-{gasto.importe}€</p>
-                    <button onClick={() => eliminarGasto(gasto.id)} className="text-red-600 hover:text-red-800">
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
               ))}
             </div>
           </div>
         )}
 
-        {gastosFiltrados.length === 0 && (
-          <p className="text-center text-gray-500 py-8">No hay gastos en este período</p>
-        )}
+        {/* Desglose por categorías */}
+        <div>
+          <h2 className="text-xl font-bold mb-3">Desglose por Categorías</h2>
+          {totalMes > 0 && Object.entries(desgloseMes).map(([cat, total]) => (
+            <div key={cat} className="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-10 h-10 rounded-full bg-orange-200 flex items-center justify-center text-orange-600">
+                🛒
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold">{cat}</p>
+                <p className="text-sm text-gray-600">{((total / totalMes) * 100).toFixed(1)}% del total</p>
+              </div>
+              <p className="font-bold text-lg">{total.toFixed(2)}€</p>
+            </div>
+          ))}
+          {totalMes === 0 && <p className="text-sm text-gray-500">Todavía no hay gastos este mes.</p>}
+        </div>
+
+        {/* Últimos gastos */}
+        <div>
+          <h2 className="text-xl font-bold mb-3">Ultimos gastos</h2>
+          {[...gastos].reverse().slice(0, 5).map(gasto => (
+            <div key={gasto.id} className="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center">
+                🛒
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold">{gasto.comercio}</p>
+                <p className="text-sm text-gray-600">{gasto.categoria} · {gasto.fecha}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="font-bold text-red-600">-{gasto.importe}€</p>
+                <button onClick={() => eliminarGasto(gasto.id)} className="text-red-600 hover:text-red-800">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {gastos.length === 0 && <p className="text-sm text-gray-500">Aún no has añadido ningún gasto.</p>}
+        </div>
       </div>
 
       {/* Modal */}
