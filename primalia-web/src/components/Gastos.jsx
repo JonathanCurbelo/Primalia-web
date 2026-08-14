@@ -28,15 +28,35 @@ export default function Gastos() {
     : null;
 
   const parsearTicket = (texto) => {
-    if (!texto) return { importe: '', comercio: '' };
-    const importes = texto.match(/[\d,]+\.?\d{1,2}\s*€?/gi) || [];
-    const valores = importes
-      .map(i => parseFloat(i.replace(/[€\s]/g, '').replace(',', '.')))
-      .filter(v => !isNaN(v));
-    const importe = valores.length > 0 ? Math.max(...valores) : '';
+    if (!texto) return { importe: '', comercio: '', fecha: '' };
+    
+    // Buscar el total - casos típicos: "TOTAL (€) 12,05" o "Importe: 12,05 €"
+    let importe = '';
+    const totalMatch = texto.match(/(?:TOTAL|Importe)[^0-9]*(\d{1,4}[.,]\d{2})/i);
+    if (totalMatch) {
+      importe = parseFloat(totalMatch[1].replace(/[.,]/, '.'));
+    } else {
+      // Fallback: buscar números con 2 decimales (formato de precio)
+      const precioMatches = texto.match(/\d{1,4}[.,]\d{2}/g) || [];
+      const preciosValidos = precioMatches
+        .map(p => parseFloat(p.replace(/[.,]/, '.')))
+        .filter(v => !isNaN(v) && v > 0 && v < 10000);
+      importe = preciosValidos.length > 0 ? Math.max(...preciosValidos) : '';
+    }
+    
+    // Comercio: primera línea, sin números
     const primeraLinea = texto.split('\n')[0] || '';
     const comercio = primeraLinea.replace(/[\d,.\s€]/g, '').slice(0, 30) || '';
-    return { importe, comercio };
+    
+    // Fecha (formato español: DD/MM/YYYY)
+    let fecha = '';
+    const fechaMatch = texto.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (fechaMatch) {
+      const [, dia, mes, año] = fechaMatch;
+      fecha = `${año}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+    }
+    
+    return { importe, comercio, fecha };
   };
 
   const abrirCamara = async () => {
@@ -67,9 +87,10 @@ export default function Gastos() {
         throw new Error('Tesseract no está cargado todavía, espera unos segundos y vuelve a intentarlo');
       }
       const { data } = await Tesseract.recognize(imagenURL, 'spa');
-      const { importe, comercio } = parsearTicket(data?.text);
+      const { importe, comercio, fecha } = parsearTicket(data?.text);
       setForm(prev => ({
         ...prev,
+        fecha: fecha || '',
         importe: importe !== '' ? String(importe) : '',
         comercio: comercio || ''
       }));
